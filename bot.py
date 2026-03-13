@@ -1,7 +1,6 @@
-
 import telebot
-import sqlite3
-from config import TELEGRAM_TOKEN
+import requests
+from config import TELEGRAM_TOKEN, APP_URL
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
@@ -12,34 +11,27 @@ def callback(call):
 
     if data.startswith("approve_"):
         request_id = data.split("_")[1]
-
-        conn = sqlite3.connect("database.db")
-        c = conn.cursor()
-        c.execute("UPDATE requests SET status='Approved' WHERE id=?", (request_id,))
-        conn.commit()
-        conn.close()
-
-        bot.answer_callback_query(call.id, "Approved")
-        bot.edit_message_text(
-            "✅ Request Approved",
-            call.message.chat.id,
-            call.message.message_id
-        )
+        status = "Approved"
 
     elif data.startswith("reject_"):
         request_id = data.split("_")[1]
+        status = "Rejected"
 
-        conn = sqlite3.connect("database.db")
-        c = conn.cursor()
-        c.execute("UPDATE requests SET status='Rejected' WHERE id=?", (request_id,))
-        conn.commit()
-        conn.close()
+    else:
+        return
 
-        bot.answer_callback_query(call.id, "Rejected")
-        bot.edit_message_text(
-            "❌ Request Rejected",
-            call.message.chat.id,
-            call.message.message_id
-        )
+    # send update to your Flask server
+    requests.post(
+        f"{APP_URL}/update_status",
+        json={"id": request_id, "status": status}
+    )
+
+    bot.answer_callback_query(call.id, status)
+
+    bot.edit_message_text(
+        f"{status}",
+        call.message.chat.id,
+        call.message.message_id
+    )
 
 bot.infinity_polling()
